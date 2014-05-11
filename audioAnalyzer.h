@@ -29,11 +29,14 @@ public:
     void sort();
     void printData();
 private:
-    void fileInDb(const string&, bool&, long&);
+    void fileInDb(const string&, ifstream::pos_type, bool&, long&);
+    sqlite3* openDb(string fileName);
     void printException(exception&);
     vector<bean_ptr<AudioAnalysis>> analyzed;
+    Database db;
     bean_ptr<AudioAnalysis> buildBean(const string&, hiberlite::Database&);
     void analysisThread(deque<bean_ptr<AudioAnalysis>>&, Database&);
+    ifstream::pos_type calculateFileSize(const string& filename);
 };
 
 #endif /* defined(__testAudio__audioAnalyzer__) */

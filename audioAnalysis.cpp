@@ -26,20 +26,14 @@ static const int MIN_NUM_VALID_BEATS = 60;
 static const int MIN_CONFIDENCE = 1.5;
 
 
-void AudioAnalysis::setFileNameAndSize(const string& fileName)
+void AudioAnalysis::setFileName(const string& fileName)
 {
     this->fileName = fileName;
-    fileSize = calculateFileSize(fileName);
-    cout << fileSize << endl;
 }
 
-ifstream::pos_type AudioAnalysis::calculateFileSize(const string& filename)
+void AudioAnalysis::setFileSize(long long fileSize)
 {
-    ifstream in;
-    ios_base::io_state em = in.exceptions() | ios::failbit | ios::badbit;
-    in.exceptions(em);
-    in.open(filename, ifstream::ate | ifstream::binary);
-    return in.tellg();
+    this->fileSize = fileSize;
 }
 
 void AudioAnalysis::setBeenAnalyzed(bool value)

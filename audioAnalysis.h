@@ -29,42 +29,38 @@ typedef TNT::Array2D<Real> array2d;
 class AudioAnalysis
 {
 public:
-    AudioAnalysis() {};
     bool hasValidData();
     void setBeenAnalyzed(bool);
     bool hasBeenAnalyzed();
-    void setFileNameAndSize(const string&);
+    void setFileName(const string&);
+    void setFileSize(long long);
     void analyzeBeats();
     void analyzeFade();
     void print();
 private:
     friend class hiberlite::access;
-    int beenAnalyzed;
     template<class Archive>
-    void hibernate(Archive& ar)
-    {
-        ar& HIBERLITE_NVP(beatLocations);
-        ar& HIBERLITE_NVP(beatConfidence);
-        //ar& HIBERLITE_NVP(fadeInLocations);
-        //ar& HIBERLITE_NVP(fadeOutLocations);
-        ar& HIBERLITE_NVP(fileName);
-        ar& HIBERLITE_NVP(fileSize);
-        ar& HIBERLITE_NVP(bpm);
-        //ar& HIBERLITE_NVP(dataValid);
-    }
-    
+    void hibernate(Archive& ar);
     string fileName;
-    long fileSize;
-    
+    long long fileSize;
+    int beenAnalyzed;
     vector<Real> beatLocations;
     Real beatConfidence;
     Real bpm;
     array2d fadeInLocations;
     array2d fadeOutLocations;
-    
-    ifstream::pos_type calculateFileSize(const string& filename);
-
 };
 
-
+template<class Archive>
+void AudioAnalysis::hibernate(Archive& ar)
+{
+    ar& HIBERLITE_NVP(beatLocations);
+    ar& HIBERLITE_NVP(beatConfidence);
+    //ar& HIBERLITE_NVP(fadeInLocations);
+    //ar& HIBERLITE_NVP(fadeOutLocations);
+    ar& HIBERLITE_NVP(fileName);
+    ar& HIBERLITE_NVP(fileSize);
+    ar& HIBERLITE_NVP(bpm);
+    ar& HIBERLITE_NVP(beenAnalyzed);
+}
 #endif /* defined(__testAudio__AudioAnalysis__) */

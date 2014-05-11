@@ -20,25 +20,35 @@ using namespace std::placeholders;
 using namespace hiberlite;
 
 static const int MAX_THREADS = 8;
-static mutex fnMutex, dataMutex, printMutex;
 static const string PATH_DATABASE = "/Users/Steve/Code/Git/testAudio/test.db";
+static mutex fnMutex, dataMutex, printMutex;
 
-AudioAnalyzer::AudioAnalyzer(deque<string>& toAnalyze)
+
+AudioAnalyzer::AudioAnalyzer(deque<string>& toAnalyze) : AudioAnalyzer()
 {
     retrieve(toAnalyze);
 }
 
 AudioAnalyzer::AudioAnalyzer()
 {
+    db.open(PATH_DATABASE);
     
+}
+
+ifstream::pos_type AudioAnalyzer::calculateFileSize(const string& filename)
+{
+    ifstream in;
+    ios_base::io_state em = in.exceptions() | ios::failbit | ios::badbit;
+    in.exceptions(em);
+    in.open(filename, ifstream::ate | ifstream::binary);
+    return in.tellg();
 }
 
 void AudioAnalyzer::retrieve(deque<string>& fileNames)
 {
-    Database db(PATH_DATABASE);
     db.registerBeanClass<AudioAnalysis>();
-    db.dropModel();
-    db.createModel();
+    //db.dropModel();
+    //db.createModel();
     
     deque<bean_ptr<AudioAnalysis>> toAnalyze;
     for (auto fn : fileNames)
@@ -81,8 +91,32 @@ void AudioAnalyzer::retrieve(deque<string>& fileNames)
     
 }
 
-void AudioAnalyzer::fileInDb(const string& fn, bool& inDb, long& id)
+void AudioAnalyzer::fileInDb(const string& fn, ifstream::pos_type fs, bool& inDb, long& id)
 {
+    static const string sqlIdStatement = "select hiberlite_id from AudioAnalysis where fileName = ? and fileSize = ?;";
+    sqlite3* rawDb;
+    sqlite3_stmt* stmt;
+    try
+    {
+        rawDb = openDb(PATH_DATABASE);
+        sqlite3_prepare_v2(rawDb, sqlIdStatement.c_str(), -1, &stmt, nullptr);
+        sqlite3_bind_text(stmt, 1, fn.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, to_string(fs).c_str(), -1, SQLITE_TRANSIENT);
+        int code = sqlite3_step(stmt);
+        if (code == SQLITE_ROW)
+        {
+            inDb = true;
+            id = sqlite3_column_int(stmt, 0);
+        }
+    }
+    catch (exception& e)
+    {
+        sqlite3_finalize(stmt);
+        sqlite3_close(rawDb);
+        throw e;
+    }
+    sqlite3_finalize(stmt);
+    sqlite3_close(rawDb);
     
 }
 void AudioAnalyzer::analysisThread(deque<bean_ptr<AudioAnalysis>>& toAnalyze, Database& db)
@@ -122,13 +156,15 @@ void AudioAnalyzer::printException(exception& e)
     cerr << "END EXCEPTION" << endl;
      printMutex.unlock();
 }
+
 bean_ptr<AudioAnalysis> AudioAnalyzer::buildBean(const string& fileName, Database& db)
 {
     bean_ptr<AudioAnalysis> aa;
     bool inDb = false;
     long id = 0;
+    ifstream::pos_type fileSize = calculateFileSize(fileName);
     
-    fileInDb(fileName, inDb, id);
+    fileInDb(fileName, fileSize, inDb, id);
     
     if (inDb)
     {
@@ -137,27 +173,26 @@ bean_ptr<AudioAnalysis> AudioAnalyzer::buildBean(const string& fileName, Databas
     else
     {
         aa = db.createBean<AudioAnalysis>();
-        aa->setFileNameAndSize(fileName);
+        aa->setFileName(fileName);
+        aa->setFileSize(fileSize);
     }
     
     return aa;
 }
 
-/*
+
 sqlite3* AudioAnalyzer::openDb(string fileName)
 {
     sqlite3* db;
-    //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    int error = sqlite3_open_v2(fileName.c_str(), &db, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX, nullptr);
+    int error = sqlite3_open_v2(fileName.c_str(), &db, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX,nullptr);
     
     if (error)
     {
-        //throw
+        throw database_error("Database error code: " + to_string(error));
     }
-    cout << "SUCCESS? : " << error << endl;
     return db;
 }
-*/
+
 
 
 
