@@ -17,6 +17,7 @@
 
 using namespace std;
 using namespace std::placeholders;
+using namespace hiberlite;
 
 static const int NUM_THREADS = 8;
 static mutex m;
@@ -28,7 +29,9 @@ AudioAnalyzer::AudioAnalyzer(const vector<string>& fileNames)
     {
         try
         {
-            data.push_back(shared_ptr<AudioAnalysis>(new AudioAnalysis(fn)));
+            shared_ptr<AudioAnalysis> aa(new AudioAnalysis);
+            aa->setFileName(fn);
+            data.push_back(aa);
         }
         catch (ios_base::failure& e)
         {
@@ -38,7 +41,7 @@ AudioAnalyzer::AudioAnalyzer(const vector<string>& fileNames)
     }
 }
 
-void AudioAnalyzer::analysisThread(deque<shared_ptr<AudioAnalysis>>& aq, sqlite3* db)
+void AudioAnalyzer::analysisThread(deque<shared_ptr<AudioAnalysis>>& aq, Database& db)
 {
     while (true)
     {
@@ -58,7 +61,7 @@ void AudioAnalyzer::analysisThread(deque<shared_ptr<AudioAnalysis>>& aq, sqlite3
         {
             try
             {
-                //aa->analyzeBeats();
+                aa->analyzeBeats();
                 aa->analyzeFade();
             }
             catch (EssentiaException& e)
@@ -73,7 +76,7 @@ void AudioAnalyzer::analysisThread(deque<shared_ptr<AudioAnalysis>>& aq, sqlite3
     }
 }
 
-
+/*
 sqlite3* AudioAnalyzer::openDb(string fileName)
 {
     sqlite3* db;
@@ -87,24 +90,27 @@ sqlite3* AudioAnalyzer::openDb(string fileName)
     cout << "SUCCESS? : " << error << endl;
     return db;
 }
-
+*/
 void AudioAnalyzer::retrieve()
 {
-    sqlite3* db = openDb(PATH_DATABASE);
+    Database db(PATH_DATABASE);
+    db.registerBeanClass<AudioAnalysis>();
+    db.dropModel();
+    db.createModel();
+    
     deque<shared_ptr<AudioAnalysis>>tempData(data);
     vector<future<void>> futures;
-        for (int i = 0; i < NUM_THREADS; ++i)
+    for (int i = 0; i < NUM_THREADS; ++i)
     {
         futures.push_back(async
                           (bind
-                           (&AudioAnalyzer::analysisThread, this, _1, _2), ref(tempData), db));
+                           (&AudioAnalyzer::analysisThread, this, _1, _2), ref(tempData), ref(db)));
     }
     
     for (auto& f : futures)
     {
         f.get();
     }
-    sqlite3_close(db);
 }
 
 
@@ -116,4 +122,5 @@ void AudioAnalyzer::printData()
         d->print();
     }
 }
+HIBERLITE_EXPORT_CLASS(AudioAnalysis)
 

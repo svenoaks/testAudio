@@ -16,25 +16,43 @@
 #include <types.h>
 #include <tnt2vector.h>
 #include <sqlite3.h>
+#include "hiberlite.h"
 
 
 using namespace std;
 using namespace essentia;
+using namespace hiberlite;
 
 typedef TNT::Array2D<Real> array2d;
+
 
 class AudioAnalysis
 {
 public:
-    AudioAnalysis(const string& fileName);
+    AudioAnalysis() {};
     bool hasValidData();
-    bool isInDb(sqlite3*);
-    void retrieveFromDb(sqlite3*);
-    void writeToDb(sqlite3*);
+    bool isInDb(Database&);
+    void setFileName(const string& fileName);
+    void retrieveFromDb(Database&);
+    void writeToDb(Database&);
     void analyzeBeats();
     void analyzeFade();
     void print();
 private:
+    friend class hiberlite::access;
+    
+    template<class Archive>
+    void hibernate(Archive& ar)
+    {
+        ar& HIBERLITE_NVP(beatLocations);
+        ar& HIBERLITE_NVP(beatConfidence);
+        //ar& HIBERLITE_NVP(fadeInLocations);
+        //ar& HIBERLITE_NVP(fadeOutLocations);
+        ar& HIBERLITE_NVP(fileName);
+        ar& HIBERLITE_NVP(fileSize);
+        //ar& HIBERLITE_NVP(dataValid);
+    }
+    
     string fileName;
     long fileSize;
     bool dataValid;

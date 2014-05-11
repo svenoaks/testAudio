@@ -15,19 +15,21 @@
 #include "poolstorage.h"
 #include "tnt2vector.h"
 #include "network.h"
+#include "hiberlite.h"
 
 using namespace std;
 using namespace essentia;
-using namespace streaming;
 using namespace essentia::scheduler;
+using namespace hiberlite;
 
-typedef TNT::Array2D<Real> array2d;
+
 
 static const int MIN_NUM_VALID_BEATS = 60;
 
 
-AudioAnalysis::AudioAnalysis(const string& fileName) : fileName(fileName)
+void AudioAnalysis::setFileName(const string& fileName)
 {
+    this->fileName = fileName;
     fileSize = calculateFileSize(fileName);
     cout << fileSize << endl;
 }
@@ -40,7 +42,7 @@ ifstream::pos_type AudioAnalysis::calculateFileSize(const string& filename)
     in.open(filename, ifstream::ate | ifstream::binary);
     return in.tellg();
 }
-bool AudioAnalysis::isInDb(sqlite3*)
+bool AudioAnalysis::isInDb(Database& db)
 {
     return false;
 }
@@ -52,28 +54,30 @@ bool AudioAnalysis::hasValidData()
 
 void AudioAnalysis::analyzeFade()
 {
+    using namespace standard;
+    
     int sr = 44100;
     int framesize = sr/4;
     int hopsize = 256;
     Real frameRate = Real(sr)/Real(hopsize);
     
-    standard::AlgorithmFactory& factory = standard::AlgorithmFactory::instance();
+    AlgorithmFactory& factory = standard::AlgorithmFactory::instance();
     
-    standard::Algorithm* audio = factory.create("MonoLoader",
-                                      "filename", fileName,
-                                      "sampleRate", sr);
+    unique_ptr<Algorithm> audio{factory.create("MonoLoader",
+                                               "filename", fileName,
+                                               "sampleRate", sr)};
     
-    standard::Algorithm* frameCutter = factory.create("FrameCutter",
-                                            "frameSize", framesize,
-                                            "hopSize", hopsize);
+    unique_ptr<Algorithm> frameCutter{factory.create("FrameCutter",
+                                                     "frameSize", framesize,
+                                                     "hopSize", hopsize)};
     
-    standard::Algorithm* rms = factory.create("RMS");
+    unique_ptr<Algorithm> rms{factory.create("RMS")};
     
-    standard::Algorithm* fadeDetect = factory.create("FadeDetection",
-                                           "minLength", 3.,
-                                           "cutoffHigh", 0.85,
-                                           "cutoffLow", 0.20,
-                                           "frameRate", frameRate);
+    unique_ptr<Algorithm> fadeDetect {factory.create("FadeDetection",
+                                                     "minLength", 3.,
+                                                     "cutoffHigh", 0.85,
+                                                     "cutoffLow", 0.20,
+                                                     "frameRate", frameRate)};
     
     // create a pool for fades' storage:
     Pool pool;
@@ -93,7 +97,7 @@ void AudioAnalysis::analyzeFade()
     rms->output("rms").set(rms_value);
     
     // we need a vector to store rms values:
-    std::vector<Real> rms_vector;
+    vector<Real> rms_vector;
     
     // load audio:
     audio->compute();
@@ -122,13 +126,10 @@ void AudioAnalysis::analyzeFade()
     cout << "FADE INS: " << fade_in.dim1() << endl;
     cout << "FADE  OUTS: " << fade_out.dim1() << endl;
     
-    delete audio;
-    delete frameCutter;
-    delete rms;
-    delete fadeDetect;
 }
 void AudioAnalysis::analyzeBeats()
 {
+    using namespace streaming;
     
     Pool pool;
     
@@ -149,7 +150,7 @@ void AudioAnalysis::analyzeBeats()
     
     
     Algorithm* bt    = factory.create("BeatTrackerMultiFeature");
-    /*
+    
     Algorithm* fc = factory.create("FrameCutter",
                                             "frameSize", framesize,
                                             "hopSize", hopsize);
@@ -161,27 +162,25 @@ void AudioAnalysis::analyzeBeats()
                                            "cutoffHigh", 0.85,
                                            "cutoffLow", 0.20,
                                            "frameRate", frameRate);
-    */
+    
     
     
     audio->output("audio")    >>  bt->input("signal");
     bt->output("confidence")  >>  PC(pool, "confidence.bpm");
     bt->output("ticks")       >>  PC(pool, "beats.bpm");
-    /*
+    
     audio->output("audio")    >>  fc->input("signal");
     fc->output("frame")       >>  rms->input("array");
     
     rms->output("rms")        >>  NOWHERE;
     fd->output("fadeIn")      >>  PC(pool, "fadein.fde");
     fd->output("fadeOut")     >>  PC(pool, "fadeout.fde");
-    */
+    
     Network n(audio);
     n.run();
     
     n.clear();
     
-    //fadeInLocations = move(pool.value<TNT::Array2D<Real>>("fadein.fde"));
-    //fadeOutLocations = move(pool.value<TNT::Array2D<Real>>("fadeout.fde"));
     beatLocations = move(pool.value<vector<Real>>("beats.bpm"));
     beatConfidence = pool.value<Real>("confidence.bpm");
     
@@ -189,8 +188,9 @@ void AudioAnalysis::analyzeBeats()
 
 static string writePKeyStatement = "insert into Track(fileName, fileSize) values (?, ?);";
 
-void AudioAnalysis::writeToDb(sqlite3* db)
+void AudioAnalysis::writeToDb(Database& db)
 {
+    /*
     sqlite3_stmt* stmt;
     sqlite3_prepare_v2(db, writePKeyStatement.c_str(), -1, &stmt, nullptr);
     sqlite3_bind_text(stmt, 1, fileName.c_str(), -1, SQLITE_TRANSIENT);
@@ -198,9 +198,11 @@ void AudioAnalysis::writeToDb(sqlite3* db)
     sqlite3_step(stmt);
     int error = sqlite3_finalize(stmt);
     cout << "ERROR CODE: " << error << endl;
+    */
+    db.copyBean(*this);
 }
 
-void AudioAnalysis::retrieveFromDb(sqlite3* db)
+void AudioAnalysis::retrieveFromDb(Database& db)
 {
     
 }

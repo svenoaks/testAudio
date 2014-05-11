@@ -16,6 +16,7 @@
 #include <memory>
 #include <deque>
 #include <sqlite3.h>
+#include "hiberlite.h"
 
 using namespace std;
 
@@ -31,8 +32,7 @@ public:
     void printData();
 private:
     deque<shared_ptr<AudioAnalysis>>data;
-    void analysisThread(deque<shared_ptr<AudioAnalysis>>& analysisQueue, sqlite3*);
-    sqlite3* openDb(string);
+    void analysisThread(deque<shared_ptr<AudioAnalysis>>& analysisQueue, hiberlite::Database&);
 };
 
 #endif /* defined(__testAudio__audioAnalyzer__) */
