@@ -31,8 +31,7 @@ AudioAnalyzer::AudioAnalyzer(deque<string>& toAnalyze) : AudioAnalyzer()
 
 AudioAnalyzer::AudioAnalyzer()
 {
-    db.open(PATH_DATABASE);
-    
+        
 }
 
 ifstream::pos_type AudioAnalyzer::calculateFileSize(const string& filename)
@@ -46,6 +45,7 @@ ifstream::pos_type AudioAnalyzer::calculateFileSize(const string& filename)
 
 void AudioAnalyzer::retrieve(deque<string>& fileNames)
 {
+    Database db(PATH_DATABASE);
     db.registerBeanClass<AudioAnalysis>();
     //db.dropModel();
     //db.createModel();

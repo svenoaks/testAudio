@@ -33,7 +33,6 @@ private:
     sqlite3* openDb(string fileName);
     void printException(exception&);
     vector<bean_ptr<AudioAnalysis>> analyzed;
-    Database db;
     bean_ptr<AudioAnalysis> buildBean(const string&, hiberlite::Database&);
     void analysisThread(deque<bean_ptr<AudioAnalysis>>&, Database&);
     ifstream::pos_type calculateFileSize(const string& filename);
