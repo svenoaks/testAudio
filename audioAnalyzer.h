@@ -20,19 +20,20 @@
 
 using namespace std;
 
-
-
 class AudioAnalyzer
 {
 public:
-    AudioAnalyzer(const vector<string>&);
-    enum class dataValidity { VALID, INVALID_ANALYSIS_FAILED, INVALID_NOT_ENOUGH_DATA };
-    void retrieve();
+    AudioAnalyzer();
+    AudioAnalyzer(deque<string>&);
+    void retrieve(deque<string>&);
     void sort();
     void printData();
 private:
-    deque<shared_ptr<AudioAnalysis>>data;
-    void analysisThread(deque<shared_ptr<AudioAnalysis>>& analysisQueue, hiberlite::Database&);
+    void fileInDb(const string&, bool&, long&);
+    void printException(exception&);
+    vector<bean_ptr<AudioAnalysis>> analyzed;
+    bean_ptr<AudioAnalysis> buildBean(const string&, hiberlite::Database&);
+    void analysisThread(deque<bean_ptr<AudioAnalysis>>&, Database&);
 };
 
 #endif /* defined(__testAudio__audioAnalyzer__) */

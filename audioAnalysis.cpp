@@ -22,12 +22,11 @@ using namespace essentia;
 using namespace essentia::scheduler;
 using namespace hiberlite;
 
-
-
 static const int MIN_NUM_VALID_BEATS = 60;
+static const int MIN_CONFIDENCE = 1.5;
 
 
-void AudioAnalysis::setFileName(const string& fileName)
+void AudioAnalysis::setFileNameAndSize(const string& fileName)
 {
     this->fileName = fileName;
     fileSize = calculateFileSize(fileName);
@@ -42,14 +41,20 @@ ifstream::pos_type AudioAnalysis::calculateFileSize(const string& filename)
     in.open(filename, ifstream::ate | ifstream::binary);
     return in.tellg();
 }
-bool AudioAnalysis::isInDb(Database& db)
+
+void AudioAnalysis::setBeenAnalyzed(bool value)
 {
-    return false;
+    beenAnalyzed = value;
 }
 
+bool AudioAnalysis::hasBeenAnalyzed()
+{
+    return beenAnalyzed;
+}
 bool AudioAnalysis::hasValidData()
 {
-    return beatLocations.size() >= MIN_NUM_VALID_BEATS;
+    return beatLocations.size() >= MIN_NUM_VALID_BEATS &&
+            beatConfidence >= MIN_CONFIDENCE;
 }
 
 void AudioAnalysis::analyzeFade()
@@ -60,6 +65,7 @@ void AudioAnalysis::analyzeFade()
     int framesize = sr/4;
     int hopsize = 256;
     Real frameRate = Real(sr)/Real(hopsize);
+    
     
     AlgorithmFactory& factory = standard::AlgorithmFactory::instance();
     
@@ -79,30 +85,22 @@ void AudioAnalysis::analyzeFade()
                                                      "cutoffLow", 0.20,
                                                      "frameRate", frameRate)};
     
-    // create a pool for fades' storage:
-    Pool pool;
     
-    // set audio:
     vector<Real> audio_mono;
     audio->output("audio").set(audio_mono);
     
-    // set frameCutter:
     vector<Real> frame;
     frameCutter->input("signal").set(audio_mono);
     frameCutter->output("frame").set(frame);
     
-    // set rms:
     Real rms_value;
     rms->input("array").set(frame);
     rms->output("rms").set(rms_value);
     
-    // we need a vector to store rms values:
     vector<Real> rms_vector;
     
-    // load audio:
     audio->compute();
     
-    // compute and store rms first and will compute fade detection later:
     while (true) {
         frameCutter->compute();
         if (frame.empty())
@@ -112,19 +110,13 @@ void AudioAnalysis::analyzeFade()
         rms_vector.push_back(rms_value);
     }
     
-    // set fade detection:
     array2d fade_in;
     array2d fade_out;
     fadeDetect->input("rms").set(rms_vector);
     fadeDetect->output("fadeIn").set(fade_in);
     fadeDetect->output("fadeOut").set(fade_out);
     
-    // compute fade detection:
     fadeDetect->compute();
-    
-    // Exemplifying how to add/retrieve values from the pool in order to output them into stdout
-    cout << "FADE INS: " << fade_in.dim1() << endl;
-    cout << "FADE  OUTS: " << fade_out.dim1() << endl;
     
 }
 void AudioAnalysis::analyzeBeats()
@@ -134,12 +126,7 @@ void AudioAnalysis::analyzeBeats()
     Pool pool;
     
     int sr = 44100;
-    int framesize = sr/4;
-    int hopsize = 256;
-    Real frameRate = Real(sr)/Real(hopsize);
 
-
-    
     AlgorithmFactory& factory = streaming::AlgorithmFactory::instance();
     
     //Algorithms owned by Network n.
@@ -148,33 +135,14 @@ void AudioAnalysis::analyzeBeats()
                                       "filename", fileName,
                                       "sampleRate", sr);
     
+    Algorithm* bt    = factory.create("RhythmExtractor2013");
     
-    Algorithm* bt    = factory.create("BeatTrackerMultiFeature");
-    
-    Algorithm* fc = factory.create("FrameCutter",
-                                            "frameSize", framesize,
-                                            "hopSize", hopsize);
-    
-    Algorithm* rms = factory.create("RMS");
-    
-    Algorithm* fd = factory.create("FadeDetection",
-                                           "minLength", 3.,
-                                           "cutoffHigh", 0.85,
-                                           "cutoffLow", 0.20,
-                                           "frameRate", frameRate);
-    
-    
-    
-    audio->output("audio")    >>  bt->input("signal");
-    bt->output("confidence")  >>  PC(pool, "confidence.bpm");
-    bt->output("ticks")       >>  PC(pool, "beats.bpm");
-    
-    audio->output("audio")    >>  fc->input("signal");
-    fc->output("frame")       >>  rms->input("array");
-    
-    rms->output("rms")        >>  NOWHERE;
-    fd->output("fadeIn")      >>  PC(pool, "fadein.fde");
-    fd->output("fadeOut")     >>  PC(pool, "fadeout.fde");
+    audio->output("audio")     >>  bt->input("signal");
+    bt->output("confidence")   >>  PC(pool, "confidence.bpm");
+    bt->output("ticks")        >>  PC(pool, "beats.bpm");
+    bt->output("bpm")          >>  PC(pool, "bpm.bpm");
+    bt->output("estimates")    >>  NOWHERE;
+    bt->output("bpmIntervals") >>  NOWHERE;
     
     Network n(audio);
     n.run();
@@ -183,38 +151,17 @@ void AudioAnalysis::analyzeBeats()
     
     beatLocations = move(pool.value<vector<Real>>("beats.bpm"));
     beatConfidence = pool.value<Real>("confidence.bpm");
-    
+    bpm = pool.value<Real>("bpm.bpm");
 }
-
-static string writePKeyStatement = "insert into Track(fileName, fileSize) values (?, ?);";
-
-void AudioAnalysis::writeToDb(Database& db)
-{
-    /*
-    sqlite3_stmt* stmt;
-    sqlite3_prepare_v2(db, writePKeyStatement.c_str(), -1, &stmt, nullptr);
-    sqlite3_bind_text(stmt, 1, fileName.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, to_string(fileSize).c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
-    int error = sqlite3_finalize(stmt);
-    cout << "ERROR CODE: " << error << endl;
-    */
-    db.copyBean(*this);
-}
-
-void AudioAnalysis::retrieveFromDb(Database& db)
-{
-    
-}
-
 
 void AudioAnalysis::print()
 {
     cout << "FILENAME: " << fileName << endl
     << "FILESIZE: " << fileSize << endl
-    //<< "CONFIDENCE: " << beatConfidence << endl
-    //<< "SOME DATA : " << beatLocations[0] << "  " << beatLocations[1] << "  "
-    //<< beatLocations[2] << "  " << beatLocations[3] << endl
+    << "CONFIDENCE: " << beatConfidence << endl
+    << "bpm : " << bpm << endl
+    << "SOME DATA : " << beatLocations[0] << "  " << beatLocations[1] << "  "
+    << beatLocations[2] << "  " << beatLocations[3] << endl
     << "END DATA" << endl;
     
 }

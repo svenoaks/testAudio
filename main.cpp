@@ -13,7 +13,7 @@ using namespace essentia::scheduler;
 
 int main(int argc, char* argv[])
 {
-    vector<string> fns = {"/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/01 Scrood Bi U.mp3",
+    deque<string> fns = {"/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/01 Scrood Bi U.mp3",
                             "/Users/Steve/Desktop/revenge_androidLust.m4a",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/02 Lover Boy _ Lover Girl.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/03 Rover Take Over.mp3",
@@ -29,12 +29,13 @@ int main(int argc, char* argv[])
     
     time_t start, end;
     time(&start);
-    AudioAnalyzer a(fns);
     
     essentia::init();
+    AudioAnalyzer a(fns);
+    
+    
     //essentia::setDebugLevel(EAll);
     
-    a.retrieve();
     a.printData();
     
     essentia::shutdown();

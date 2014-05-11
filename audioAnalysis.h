@@ -31,16 +31,15 @@ class AudioAnalysis
 public:
     AudioAnalysis() {};
     bool hasValidData();
-    bool isInDb(Database&);
-    void setFileName(const string& fileName);
-    void retrieveFromDb(Database&);
-    void writeToDb(Database&);
+    void setBeenAnalyzed(bool);
+    bool hasBeenAnalyzed();
+    void setFileNameAndSize(const string&);
     void analyzeBeats();
     void analyzeFade();
     void print();
 private:
     friend class hiberlite::access;
-    
+    int beenAnalyzed;
     template<class Archive>
     void hibernate(Archive& ar)
     {
@@ -50,15 +49,16 @@ private:
         //ar& HIBERLITE_NVP(fadeOutLocations);
         ar& HIBERLITE_NVP(fileName);
         ar& HIBERLITE_NVP(fileSize);
+        ar& HIBERLITE_NVP(bpm);
         //ar& HIBERLITE_NVP(dataValid);
     }
     
     string fileName;
     long fileSize;
-    bool dataValid;
     
     vector<Real> beatLocations;
     Real beatConfidence;
+    Real bpm;
     array2d fadeInLocations;
     array2d fadeOutLocations;
     

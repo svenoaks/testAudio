@@ -19,61 +19,128 @@ using namespace std;
 using namespace std::placeholders;
 using namespace hiberlite;
 
-static const int NUM_THREADS = 8;
-static mutex m;
+static const int MAX_THREADS = 8;
+static mutex fnMutex, dataMutex, printMutex;
 static const string PATH_DATABASE = "/Users/Steve/Code/Git/testAudio/test.db";
 
-AudioAnalyzer::AudioAnalyzer(const vector<string>& fileNames)
+AudioAnalyzer::AudioAnalyzer(deque<string>& toAnalyze)
 {
-    for (auto& fn : fileNames)
+    retrieve(toAnalyze);
+}
+
+AudioAnalyzer::AudioAnalyzer()
+{
+    
+}
+
+void AudioAnalyzer::retrieve(deque<string>& fileNames)
+{
+    Database db(PATH_DATABASE);
+    db.registerBeanClass<AudioAnalysis>();
+    db.dropModel();
+    db.createModel();
+    
+    deque<bean_ptr<AudioAnalysis>> toAnalyze;
+    for (auto fn : fileNames)
     {
         try
         {
-            shared_ptr<AudioAnalysis> aa(new AudioAnalysis);
-            aa->setFileName(fn);
-            data.push_back(aa);
+            auto aa = buildBean(fn, db);
+            if (aa->hasBeenAnalyzed())
+            {
+                analyzed.push_back(aa);
+            }
+            else
+            {
+               toAnalyze.push_back(aa);
+            }
         }
         catch (ios_base::failure& e)
         {
-            cerr << e.what() << endl;
+            printException(e);
         }
-        
+        catch (database_error& e)
+        {
+            printException(e);
+        }
     }
+    
+    vector<future<void>> futures;
+    for (int i = 0; i < MAX_THREADS; ++i)
+    {
+        futures.push_back(async
+                          (bind
+                           (&AudioAnalyzer::analysisThread, this, _1, _2), ref(toAnalyze), ref(db)));
+    }
+    
+    
+    for (auto& f : futures)
+    {
+        f.get();
+    }
+    
 }
 
-void AudioAnalyzer::analysisThread(deque<shared_ptr<AudioAnalysis>>& aq, Database& db)
+void AudioAnalyzer::fileInDb(const string& fn, bool& inDb, long& id)
+{
+    
+}
+void AudioAnalyzer::analysisThread(deque<bean_ptr<AudioAnalysis>>& toAnalyze, Database& db)
 {
     while (true)
     {
-        m.lock();
-        if (aq.empty())
+        fnMutex.lock();
+        if (toAnalyze.empty())
         {
-            m.unlock();
+            fnMutex.unlock();
             break;
         }
-        auto aa = aq.front();
-        aq.pop_front();
-        m.unlock();
-        
-        if(aa->isInDb(db)) aa->retrieveFromDb(db);
-        
-        if (!aa->hasValidData()) //testing
+        auto aa = toAnalyze.front();
+        toAnalyze.pop_front();
+        fnMutex.unlock();
+        try
         {
-            try
-            {
-                aa->analyzeBeats();
-                aa->analyzeFade();
-            }
-            catch (EssentiaException& e)
-            {
-                cerr << "THIS IS AN EXCEPTION" << endl;
-                cerr << e.what() << endl;
-                cerr << "END EXCEPTION" << endl;
-                
-            }
-            aa->writeToDb(db);
+            aa->analyzeBeats();
+            aa->analyzeFade();
         }
+        catch (EssentiaException& e)
+        {
+            printException(e);
+        }
+        aa->setBeenAnalyzed(true);
+        dataMutex.lock();
+        analyzed.push_back(aa);
+        dataMutex.unlock();
     }
+}
+
+void AudioAnalyzer::printException(exception& e)
+{
+    printMutex.lock();
+    cerr << "THIS IS AN EXCEPTION" << endl;
+    cerr << e.what() << endl;
+    cerr << "END EXCEPTION" << endl;
+     printMutex.unlock();
+}
+bean_ptr<AudioAnalysis> AudioAnalyzer::buildBean(const string& fileName, Database& db)
+{
+    bean_ptr<AudioAnalysis> aa;
+    bool inDb = false;
+    long id = 0;
+    
+    fileInDb(fileName, inDb, id);
+    
+    if (inDb)
+    {
+        aa = db.loadBean<AudioAnalysis>(id);
+    }
+    else
+    {
+        aa = db.createBean<AudioAnalysis>();
+        aa->setFileNameAndSize(fileName);
+    }
+    
+    return aa;
 }
 
 /*
@@ -91,33 +158,12 @@ sqlite3* AudioAnalyzer::openDb(string fileName)
     return db;
 }
 */
-void AudioAnalyzer::retrieve()
-{
-    Database db(PATH_DATABASE);
-    db.registerBeanClass<AudioAnalysis>();
-    db.dropModel();
-    db.createModel();
-    
-    deque<shared_ptr<AudioAnalysis>>tempData(data);
-    vector<future<void>> futures;
-    for (int i = 0; i < NUM_THREADS; ++i)
-    {
-        futures.push_back(async
-                          (bind
-                           (&AudioAnalyzer::analysisThread, this, _1, _2), ref(tempData), ref(db)));
-    }
-    
-    for (auto& f : futures)
-    {
-        f.get();
-    }
-}
 
 
 
 void AudioAnalyzer::printData()
 {
-    for (auto d : data)
+    for (auto d : analyzed)
     {
         d->print();
     }
