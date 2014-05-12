@@ -24,9 +24,9 @@ static const string PATH_DATABASE = "/Users/Steve/Code/Git/testAudio/test.db";
 static mutex fnMutex, dataMutex, printMutex;
 
 
-AudioAnalyzer::AudioAnalyzer(deque<string>& toAnalyze) : AudioAnalyzer()
+AudioAnalyzer::AudioAnalyzer(deque<string>& fileNames) : AudioAnalyzer()
 {
-    retrieve(toAnalyze);
+    retrieve(fileNames );
 }
 
 AudioAnalyzer::AudioAnalyzer()

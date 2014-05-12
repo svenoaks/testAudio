@@ -47,8 +47,8 @@ private:
     vector<Real> beatLocations;
     Real beatConfidence;
     Real bpm;
-    array2d fadeInLocations;
-    array2d fadeOutLocations;
+    vector<vector<Real>> fadeInLocations;
+    vector<vector<Real>> fadeOutLocations;
 };
 
 template<class Archive>
@@ -56,8 +56,8 @@ void AudioAnalysis::hibernate(Archive& ar)
 {
     ar& HIBERLITE_NVP(beatLocations);
     ar& HIBERLITE_NVP(beatConfidence);
-    //ar& HIBERLITE_NVP(fadeInLocations);
-    //ar& HIBERLITE_NVP(fadeOutLocations);
+    ar& HIBERLITE_NVP(fadeInLocations);
+    ar& HIBERLITE_NVP(fadeOutLocations);
     ar& HIBERLITE_NVP(fileName);
     ar& HIBERLITE_NVP(fileSize);
     ar& HIBERLITE_NVP(bpm);

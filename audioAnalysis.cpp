@@ -112,6 +112,8 @@ void AudioAnalysis::analyzeFade()
     
     fadeDetect->compute();
     
+    if (fade_in.dim1() > 0) fadeInLocations = array2DToVecvec(fade_in);
+    if (fade_out.dim1() > 0) fadeOutLocations = array2DToVecvec(fade_out);
 }
 void AudioAnalysis::analyzeBeats()
 {
@@ -154,8 +156,8 @@ void AudioAnalysis::print()
     << "FILESIZE: " << fileSize << endl
     << "CONFIDENCE: " << beatConfidence << endl
     << "bpm : " << bpm << endl
-    << "SOME DATA : " << beatLocations[0] << "  " << beatLocations[1] << "  "
-    << beatLocations[2] << "  " << beatLocations[3] << endl
+    << "SOME DATA : " << beatLocations.at(0) << "  " << beatLocations.at(1) << "  "
+    << beatLocations.at(2) << "  " << beatLocations.at(3) << endl
     << "END DATA" << endl;
     
 }
