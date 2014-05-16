@@ -7,6 +7,7 @@
 //
 
 #include "audioAnalyzer.h"
+#include "audioAnalyzerError.h"
 #include <sqlite3.h>
 #include <future>
 #include <mutex>
@@ -24,7 +25,7 @@ static const string PATH_DATABASE = "/Users/Steve/Code/Git/testAudio/test.db";
 static mutex fnMutex, dataMutex, printMutex;
 
 
-AudioAnalyzer::AudioAnalyzer(deque<string>& fileNames) : AudioAnalyzer()
+AudioAnalyzer::AudioAnalyzer(vector<string>& fileNames) : AudioAnalyzer()
 {
     retrieve(fileNames );
 }
@@ -43,13 +44,8 @@ ifstream::pos_type AudioAnalyzer::calculateFileSize(const string& filename)
     return in.tellg();
 }
 
-void AudioAnalyzer::retrieve(deque<string>& fileNames)
+deque<bean_ptr<AudioAnalysis>>AudioAnalyzer::buildVectorToAnalyze(Database& db, vector<string>& fileNames)
 {
-    Database db(PATH_DATABASE);
-    db.registerBeanClass<AudioAnalysis>();
-    //db.dropModel();
-    //db.createModel();
-    
     deque<bean_ptr<AudioAnalysis>> toAnalyze;
     for (auto fn : fileNames)
     {
@@ -62,7 +58,7 @@ void AudioAnalyzer::retrieve(deque<string>& fileNames)
             }
             else
             {
-               toAnalyze.push_back(aa);
+                toAnalyze.push_back(aa);
             }
         }
         catch (ios_base::failure& e)
@@ -74,6 +70,17 @@ void AudioAnalyzer::retrieve(deque<string>& fileNames)
             printException(e);
         }
     }
+    return toAnalyze;
+}
+
+void AudioAnalyzer::retrieve(vector<string>& fileNames)
+{
+    Database db(PATH_DATABASE);
+    db.registerBeanClass<AudioAnalysis>();
+    db.dropModel();
+    db.createModel();
+    
+    auto toAnalyze = buildVectorToAnalyze(db, fileNames);
     
     vector<future<void>> futures;
     for (int i = 0; i < MAX_THREADS; ++i)
@@ -91,30 +98,44 @@ void AudioAnalyzer::retrieve(deque<string>& fileNames)
     
 }
 
+void AudioAnalyzer::nextSplicePoint(float& firstSongValue, float& secondSongValue)
+{
+    static const int MIN_SONGS = 2;
+    
+    auto firstSong = analyzed.at(0);
+    auto secondSong = analyzed.at(1);
+    
+    if (analyzed.size() < MIN_SONGS)
+    {
+        throw AudioAnalyzerError("Can't splice with less than two songs");
+    }
+    if (!firstSong->hasValidData() || !secondSong->hasValidData())
+    {
+        throw AudioAnalyzerError("One or more of the songs do not have valid data");
+    }
+    
+    firstSongValue = firstSong->beatBeforeFadeOutIfPresent(0.0f);
+    secondSongValue = secondSong->beatAfterFadeInIfPresent();
+}
+
 void AudioAnalyzer::fileInDb(const string& fn, ifstream::pos_type fs, bool& inDb, long& id)
 {
     static const string sqlIdStatement = "select hiberlite_id from AudioAnalysis where fileName = ? and fileSize = ?;";
+    
     sqlite3* rawDb;
     sqlite3_stmt* stmt;
-    try
+    
+    sqlite3_open_v2(PATH_DATABASE.c_str(), &rawDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX,nullptr);
+    sqlite3_prepare_v2(rawDb, sqlIdStatement.c_str(), -1, &stmt, nullptr);
+    sqlite3_bind_text(stmt, 1, fn.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, to_string(fs).c_str(), -1, SQLITE_TRANSIENT);
+    int code = sqlite3_step(stmt);
+    if (code == SQLITE_ROW)
     {
-        rawDb = openDb(PATH_DATABASE);
-        sqlite3_prepare_v2(rawDb, sqlIdStatement.c_str(), -1, &stmt, nullptr);
-        sqlite3_bind_text(stmt, 1, fn.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, to_string(fs).c_str(), -1, SQLITE_TRANSIENT);
-        int code = sqlite3_step(stmt);
-        if (code == SQLITE_ROW)
-        {
-            inDb = true;
-            id = sqlite3_column_int(stmt, 0);
-        }
+        inDb = true;
+        id = sqlite3_column_int(stmt, 0);
     }
-    catch (exception& e)
-    {
-        sqlite3_finalize(stmt);
-        sqlite3_close(rawDb);
-        throw e;
-    }
+    
     sqlite3_finalize(stmt);
     sqlite3_close(rawDb);
     
@@ -150,11 +171,10 @@ void AudioAnalyzer::analysisThread(deque<bean_ptr<AudioAnalysis>>& toAnalyze, Da
 
 void AudioAnalyzer::printException(exception& e)
 {
-    printMutex.lock();
+    lock_guard<mutex> lock{printMutex};
     cerr << "THIS IS AN EXCEPTION" << endl;
     cerr << e.what() << endl;
     cerr << "END EXCEPTION" << endl;
-     printMutex.unlock();
 }
 
 bean_ptr<AudioAnalysis> AudioAnalyzer::buildBean(const string& fileName, Database& db)

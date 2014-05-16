@@ -5,6 +5,7 @@
 #include "network.h"
 #include "audioAnalysis.h"
 #include "audioAnalyzer.h"
+#include <vector>
 #include <ctime>
 using namespace std;
 using namespace essentia;
@@ -13,7 +14,7 @@ using namespace essentia::scheduler;
 
 int main(int argc, char* argv[])
 {
-    deque<string> fns = {"/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/01 Scrood Bi U.mp3",
+    vector<string> fns = {"/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/01 Scrood Bi U.mp3",
                             
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/02 Lover Boy _ Lover Girl.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/03 Rover Take Over.mp3",
@@ -41,6 +42,9 @@ int main(int argc, char* argv[])
     essentia::shutdown();
     time(&end);
     cout << difftime(end, start) << " seconds" << std::endl;
+    float f, s;
+    a.nextSplicePoint(f, s);
+    cout << "FIRST: " << f << " SECOND: " << s << endl;
     return 0;
 }
 

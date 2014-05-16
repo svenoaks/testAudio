@@ -24,8 +24,9 @@ class AudioAnalyzer
 {
 public:
     AudioAnalyzer();
-    AudioAnalyzer(deque<string>&);
-    void retrieve(deque<string>&);
+    AudioAnalyzer(vector<string>&);
+    void nextSplicePoint(float&, float&);
+    void retrieve(vector<string>&);
     void sort();
     void printData();
 private:
@@ -34,6 +35,7 @@ private:
     void printException(exception&);
     vector<bean_ptr<AudioAnalysis>> analyzed;
     bean_ptr<AudioAnalysis> buildBean(const string&, hiberlite::Database&);
+    deque<bean_ptr<AudioAnalysis>> buildVectorToAnalyze(Database&, vector<string>&);
     void analysisThread(deque<bean_ptr<AudioAnalysis>>&, Database&);
     ifstream::pos_type calculateFileSize(const string& filename);
 };

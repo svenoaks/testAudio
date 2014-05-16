@@ -37,6 +37,9 @@ public:
     void analyzeBeats();
     void analyzeFade();
     void print();
+    
+    float beatBeforeFadeOutIfPresent(float);
+    float beatAfterFadeInIfPresent();
 private:
     friend class hiberlite::access;
     template<class Archive>

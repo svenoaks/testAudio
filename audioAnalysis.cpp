@@ -16,6 +16,7 @@
 #include "tnt2vector.h"
 #include "network.h"
 #include "hiberlite.h"
+#include "audioAnalyzerError.h"
 
 using namespace std;
 using namespace essentia;
@@ -23,8 +24,37 @@ using namespace essentia::scheduler;
 using namespace hiberlite;
 
 static const int MIN_NUM_VALID_BEATS = 60;
-static const int MIN_CONFIDENCE = 1.5;
+static const int MIN_CONFIDENCE = 0.3;
 
+float AudioAnalysis::beatBeforeFadeOutIfPresent(float maxTimeSeconds)
+{
+    return 0.0f;
+}
+float AudioAnalysis::beatAfterFadeInIfPresent()
+{
+    static const int FIRST_FADE_IN = 0;
+    static const int END_OF_FIRST_FADE_IN = 1;
+    static const int BEATS_INTO_SONG = 9;
+    static const int BAR = 4;
+    
+    if (!hasValidData())
+    {
+        throw new AudioAnalyzerError("AudioAnalysis does not have valid data");
+    }
+    
+    if (!fadeInLocations.empty())
+    {
+        float endFade  = fadeInLocations.at(FIRST_FADE_IN).at(END_OF_FIRST_FADE_IN);
+        for (int i = 0; i < beatLocations.size();  i *= BAR)
+        {
+            if (beatLocations.at(i) > endFade)
+            {
+                return beatLocations.at(i);
+            }
+        }
+    }
+    return beatLocations.at(BEATS_INTO_SONG - 1);
+}
 
 void AudioAnalysis::setFileName(const string& fileName)
 {
@@ -156,8 +186,8 @@ void AudioAnalysis::print()
     << "FILESIZE: " << fileSize << endl
     << "CONFIDENCE: " << beatConfidence << endl
     << "bpm : " << bpm << endl
-    << "SOME DATA : " << beatLocations.at(0) << "  " << beatLocations.at(1) << "  "
-    << beatLocations.at(2) << "  " << beatLocations.at(3) << endl
+    << "SOME DATA : " << beatLocations[0] << "  " << beatLocations[1] << "  "
+    << beatLocations[2] << "  " << beatLocations[3] << endl
     << "END DATA" << endl;
     
 }
