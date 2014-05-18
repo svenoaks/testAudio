@@ -8,6 +8,7 @@
 
 #include "audioAnalyzer.h"
 #include "audioAnalyzerError.h"
+#include "essentia.h"
 #include <sqlite3.h>
 #include <future>
 #include <mutex>
@@ -27,7 +28,7 @@ static mutex fnMutex, dataMutex, printMutex;
 
 AudioAnalyzer::AudioAnalyzer(vector<string>& fileNames) : AudioAnalyzer()
 {
-    retrieve(fileNames );
+    retrieve(fileNames);
 }
 
 AudioAnalyzer::AudioAnalyzer()
@@ -75,10 +76,11 @@ deque<bean_ptr<AudioAnalysis>>AudioAnalyzer::buildVectorToAnalyze(Database& db, 
 
 void AudioAnalyzer::retrieve(vector<string>& fileNames)
 {
-    Database db(PATH_DATABASE);
+    EssentiaInitializer init{};
+    Database db{ PATH_DATABASE };
     db.registerBeanClass<AudioAnalysis>();
-    db.dropModel();
-    db.createModel();
+    //db.dropModel();
+    //db.createModel();
     
     auto toAnalyze = buildVectorToAnalyze(db, fileNames);
     
@@ -98,7 +100,7 @@ void AudioAnalyzer::retrieve(vector<string>& fileNames)
     
 }
 
-void AudioAnalyzer::nextSplicePoint(float& firstSongValue, float& secondSongValue)
+void AudioAnalyzer::nextSplicePoint(float timeEnd, float timeBegin, float& firstSongValue, float& secondSongValue)
 {
     static const int MIN_SONGS = 2;
     
@@ -114,8 +116,8 @@ void AudioAnalyzer::nextSplicePoint(float& firstSongValue, float& secondSongValu
         throw AudioAnalyzerError("One or more of the songs do not have valid data");
     }
     
-    firstSongValue = firstSong->beatBeforeFadeOutIfPresent(0.0f);
-    secondSongValue = secondSong->beatAfterFadeInIfPresent();
+    firstSongValue = firstSong->beatBeforeFadeOutIfPresent(timeEnd);
+    secondSongValue = secondSong->beatAfterFadeInIfPresent(timeBegin);
 }
 
 void AudioAnalyzer::fileInDb(const string& fn, ifstream::pos_type fs, bool& inDb, long& id)
@@ -163,12 +165,15 @@ void AudioAnalyzer::analysisThread(deque<bean_ptr<AudioAnalysis>>& toAnalyze, Da
             printException(e);
         }
         aa->setBeenAnalyzed(true);
-        dataMutex.lock();
-        analyzed.push_back(aa);
-        dataMutex.unlock();
+        pushBackAnalyzed(aa);
     }
 }
 
+inline void AudioAnalyzer::pushBackAnalyzed(bean_ptr<AudioAnalysis> aa)
+{
+    lock_guard<mutex> lock{dataMutex};
+    analyzed.push_back(aa);
+}
 void AudioAnalyzer::printException(exception& e)
 {
     lock_guard<mutex> lock{printMutex};

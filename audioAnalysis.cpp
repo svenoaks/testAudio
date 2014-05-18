@@ -24,36 +24,61 @@ using namespace essentia::scheduler;
 using namespace hiberlite;
 
 static const int MIN_NUM_VALID_BEATS = 60;
-static const int MIN_CONFIDENCE = 0.3;
+static const int MIN_CONFIDENCE = 1.5;
 
-float AudioAnalysis::beatBeforeFadeOutIfPresent(float maxTimeSeconds)
+float AudioAnalysis::beatBeforeFadeOutIfPresent(float timeBeforeEnd)
 {
-    return 0.0f;
-}
-float AudioAnalysis::beatAfterFadeInIfPresent()
-{
-    static const int FIRST_FADE_IN = 0;
-    static const int END_OF_FIRST_FADE_IN = 1;
-    static const int BEATS_INTO_SONG = 9;
-    static const int BAR = 4;
+    static const int BEG_OF_FADE_OUT = 0;
     
     if (!hasValidData())
     {
         throw new AudioAnalyzerError("AudioAnalysis does not have valid data");
     }
     
-    if (!fadeInLocations.empty())
+    float lastBeat = beatLocations.at(beatLocations.size() - 1);
+    float requiredTime;
+    if (fadeOutLocations.empty())
     {
-        float endFade  = fadeInLocations.at(FIRST_FADE_IN).at(END_OF_FIRST_FADE_IN);
-        for (int i = 0; i < beatLocations.size();  i *= BAR)
+        requiredTime = lastBeat - timeBeforeEnd;
+    }
+    else
+    {
+        float fadeOutBegTime = fadeOutLocations.at(fadeOutLocations.size() - 1).at(BEG_OF_FADE_OUT);
+        requiredTime = fadeOutBegTime - timeBeforeEnd;
+    }
+    
+    for (vector<Real>::reverse_iterator rit = beatLocations.rbegin(); rit != beatLocations.rend(); ++rit)
+    {
+        if (*rit < requiredTime)
         {
-            if (beatLocations.at(i) > endFade)
-            {
-                return beatLocations.at(i);
-            }
+            return *rit;
         }
     }
-    return beatLocations.at(BEATS_INTO_SONG - 1);
+    
+    return lastBeat;
+    
+}
+float AudioAnalysis::beatAfterFadeInIfPresent(float timeIntoSong)
+{
+    static const int FIRST_FADE_IN = 0;
+    static const int FIRST_BEAT = 0;
+    static const int END_OF_FADE_IN = 1;
+    
+    if (!hasValidData())
+    {
+        throw new AudioAnalyzerError("AudioAnalysis does not have valid data");
+    }
+    
+    float endFade  = fadeInLocations.empty() ? FIRST_BEAT : fadeInLocations.at(FIRST_FADE_IN).at(END_OF_FADE_IN);
+    float time = endFade + timeIntoSong;
+    for (float beat : beatLocations)
+    {
+        if (beat > time)
+        {
+            return beat;
+        }
+    }
+    return beatLocations.at(FIRST_BEAT);
 }
 
 void AudioAnalysis::setFileName(const string& fileName)
@@ -104,7 +129,7 @@ void AudioAnalysis::analyzeFade()
     unique_ptr<Algorithm> rms{factory.create("RMS")};
     
     unique_ptr<Algorithm> fadeDetect {factory.create("FadeDetection",
-                                                     "minLength", 3.,
+                                                     "minLength", 5.0,
                                                      "cutoffHigh", 0.85,
                                                      "cutoffLow", 0.20,
                                                      "frameRate", frameRate)};

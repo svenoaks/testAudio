@@ -9,6 +9,7 @@
 #ifndef __testAudio__audioAnalyzer__
 #define __testAudio__audioAnalyzer__
 
+#include "essentia.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -25,12 +26,19 @@ class AudioAnalyzer
 public:
     AudioAnalyzer();
     AudioAnalyzer(vector<string>&);
-    void nextSplicePoint(float&, float&);
+    void nextSplicePoint(float, float, float&, float&);
     void retrieve(vector<string>&);
     void sort();
     void printData();
 private:
+    class EssentiaInitializer
+    {
+    public:
+        EssentiaInitializer() { essentia::init(); };
+        ~EssentiaInitializer() { essentia::shutdown(); };
+    };
     void fileInDb(const string&, ifstream::pos_type, bool&, long&);
+    void pushBackAnalyzed(bean_ptr<AudioAnalysis>);
     sqlite3* openDb(string fileName);
     void printException(exception&);
     vector<bean_ptr<AudioAnalysis>> analyzed;

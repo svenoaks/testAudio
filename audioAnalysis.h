@@ -39,7 +39,7 @@ public:
     void print();
     
     float beatBeforeFadeOutIfPresent(float);
-    float beatAfterFadeInIfPresent();
+    float beatAfterFadeInIfPresent(float);
 private:
     friend class hiberlite::access;
     template<class Archive>

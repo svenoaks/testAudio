@@ -18,7 +18,6 @@ int main(int argc, char* argv[])
                             
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/02 Lover Boy _ Lover Girl.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/03 Rover Take Over.mp3",
-         "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/04 Pleasure And Pain Concerto.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/05 Slave To Love.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/06 Sex Bomb.mp3",
          "/Users/Steve/Music/iTunes/iTunes Media/Music/Lords of Acid/Farstucker/07 Take Off.mp3",
@@ -31,19 +30,18 @@ int main(int argc, char* argv[])
     time_t start, end;
     time(&start);
     
-    essentia::init();
+    
     AudioAnalyzer a(fns);
     
     
-    //essentia::setDebugLevel(EAll);
+   
     
     a.printData();
     
-    essentia::shutdown();
     time(&end);
     cout << difftime(end, start) << " seconds" << std::endl;
     float f, s;
-    a.nextSplicePoint(f, s);
+    a.nextSplicePoint(10.0f, 10.0f, f, s);
     cout << "FIRST: " << f << " SECOND: " << s << endl;
     return 0;
 }
