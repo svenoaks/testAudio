@@ -1,16 +1,11 @@
 
 #include <iostream>
-#include "algorithmfactory.h"
-#include "poolstorage.h"
-#include "network.h"
-#include "audioAnalysis.h"
+
 #include "audioAnalyzer.h"
 #include <vector>
 #include <ctime>
 using namespace std;
-using namespace essentia;
-using namespace essentia::streaming;
-using namespace essentia::scheduler;
+
 
 int main(int argc, char* argv[])
 {
@@ -31,10 +26,9 @@ int main(int argc, char* argv[])
     time(&start);
     
     
-    AudioAnalyzer a(fns);
+    AudioAnalyzer a;
     
-    
-   
+    a.retrieve(fns);
     
     a.printData();
     
